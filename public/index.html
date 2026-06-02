@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Token Cost</title>
+<style>
+:root {
+  --bg: #f4f5f7;
+  --card-bg: #fff;
+  --text: #1a1a2e;
+  --text-secondary: #6b7280;
+  --text-tertiary: #9ca3af;
+  --border: #e5e7eb;
+  --accent: #4f46e5;
+  --accent-dim: #e0e7ff;
+  --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+  --shadow-lg: 0 4px 6px -1px rgba(0,0,0,.07), 0 2px 4px -2px rgba(0,0,0,.05);
+  --radius: 14px;
+  --radius-sm: 10px;
+  --deepseek: #4f6ef7;
+  --deepseek-bg: #eef2ff;
+  --volcano: #f04e30;
+  --volcano-bg: #fef2f2;
+  --kimi: #10b981;
+  --kimi-bg: #ecfdf5;
+  --skeleton: #e5e7eb;
+  --skeleton-shine: #f3f4f6;
+  --error-bg: #fef2f2;
+  --error-text: #dc2626;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1117;
+    --card-bg: #1a1d27;
+    --text: #e5e7eb;
+    --text-secondary: #9ca3af;
+    --text-tertiary: #6b7280;
+    --border: #2d3040;
+    --shadow: 0 1px 3px rgba(0,0,0,.3);
+    --shadow-lg: 0 4px 8px rgba(0,0,0,.35);
+    --deepseek-bg: rgba(79,110,247,.12);
+    --volcano-bg: rgba(240,78,48,.12);
+    --kimi-bg: rgba(16,185,129,.12);
+    --skeleton: #2d3040;
+    --skeleton-shine: #363a4d;
+    --error-bg: rgba(220,38,38,.12);
+    --accent-dim: rgba(79,70,229,.2);
+  }
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans SC", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100dvh;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+
+/* ─── Header ─── */
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.header h1 {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.refresh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  color: var(--text);
+  border-radius: 999px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+.refresh-btn:active { transform: scale(.97); }
+.refresh-btn.spin .icon-refresh { animation: spin .6s linear; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+@keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+
+.last-updated {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+/* ─── Grid ─── */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+@media (max-width: 700px) {
+  .grid { grid-template-columns: 1fr; }
+  .header { flex-direction: column; align-items: flex-start; }
+  .header-right { width: 100%; justify-content: space-between; }
+  .header h1 { font-size: 22px; }
+}
+
+/* ─── Card ─── */
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px 20px 18px;
+  box-shadow: var(--shadow);
+  transition: box-shadow .2s, transform .2s;
+  animation: fadeIn .35s ease;
+}
+.card:hover { box-shadow: var(--shadow-lg); }
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.platform-icon {
+  width: 38px; height: 38px;
+  border-radius: var(--radius-sm);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 700;
+  flex-shrink: 0;
+}
+.ds-icon { background: var(--deepseek-bg); color: var(--deepseek); }
+.vol-icon { background: var(--volcano-bg); color: var(--volcano); }
+.ki-icon { background: var(--kimi-bg); color: var(--kimi); }
+
+.platform-name {
+  font-size: 15px; font-weight: 600;
+  letter-spacing: -.01em;
+}
+
+/* ─── Balance ─── */
+.balance-section { margin-bottom: 14px; }
+.balance-label {
+  font-size: 12px; color: var(--text-tertiary);
+  text-transform: uppercase; letter-spacing: .06em;
+  margin-bottom: 4px;
+}
+.balance-value {
+  font-size: 30px; font-weight: 700;
+  letter-spacing: -.02em; font-variant-numeric: tabular-nums;
+}
+.balance-unit { font-size: 14px; font-weight: 500; color: var(--text-secondary); margin-left: 4px; }
+
+/* ─── Usage bar ─── */
+.usage-section { margin-bottom: 6px; }
+.usage-label {
+  font-size: 12px; color: var(--text-tertiary);
+  margin-bottom: 6px; display: flex; justify-content: space-between;
+}
+.usage-total { font-weight: 600; color: var(--text-secondary); }
+
+.usage-bar-track {
+  height: 6px; border-radius: 99px;
+  background: var(--border); overflow: hidden;
+}
+.usage-bar-fill {
+  height: 100%; border-radius: 99px;
+  transition: width .6s cubic-bezier(.4,0,.2,1);
+}
+.ds-bar { background: var(--deepseek); }
+.vol-bar { background: var(--volcano); }
+.ki-bar { background: var(--kimi); }
+
+/* ─── Stats row ─── */
+.stats-row {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 10px; margin-top: 14px; padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.stat-item {}
+.stat-label { font-size: 11px; color: var(--text-tertiary); }
+.stat-value { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ─── Skeleton ─── */
+.skeleton {
+  background: var(--skeleton);
+  border-radius: 6px;
+  position: relative; overflow: hidden;
+}
+.skeleton::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, var(--skeleton-shine), transparent);
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+@keyframes shimmer { 0% { transform: translateX(-100%) } 100% { transform: translateX(100%) } }
+
+.skel-lg { height: 34px; width: 70%; margin: 4px 0 8px; }
+.skel-bar { height: 6px; border-radius: 99px; margin-bottom: 12px; }
+.skel-sm { height: 15px; width: 50%; }
+
+/* ─── Error ─── */
+.card-error {
+  background: var(--error-bg);
+  border: 1px solid rgba(220,38,38,.25);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  color: var(--error-text);
+  font-size: 13px;
+  margin: 8px 0;
+}
+.card-error .err-title { font-weight: 600; margin-bottom: 4px; }
+.card-error .err-detail { opacity: .8; font-size: 12px; }
+
+/* ─── Footer hint ─── */
+.setup-hint {
+  margin-top: 32px; text-align: center;
+  font-size: 13px; color: var(--text-tertiary);
+}
+.setup-hint code {
+  background: var(--card-bg); border: 1px solid var(--border);
+  padding: 2px 6px; border-radius: 4px; font-size: 12px;
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header class="header">
+    <h1>Token Cost</h1>
+    <div class="header-right">
+      <span class="last-updated" id="updated"></span>
+      <button class="refresh-btn" id="refreshBtn" onclick="fetchAll()">
+        <svg class="icon-refresh" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        刷新
+      </button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- DeepSeek -->
+    <div class="card" id="card-deepseek">
+      <div class="card-header">
+        <div class="platform-icon ds-icon">DS</div>
+        <span class="platform-name">DeepSeek</span>
+      </div>
+      <div id="ds-content"><div class="skeleton skel-lg"></div><div class="skeleton skel-bar"></div><div class="skeleton skel-sm"></div></div>
+    </div>
+
+    <!-- Volcano Engine -->
+    <div class="card" id="card-volcano">
+      <div class="card-header">
+        <div class="platform-icon vol-icon">火</div>
+        <span class="platform-name">火山引擎</span>
+      </div>
+      <div id="vol-content"><div class="skeleton skel-lg"></div><div class="skeleton skel-bar"></div><div class="skeleton skel-sm"></div></div>
+    </div>
+
+    <!-- Kimi -->
+    <div class="card" id="card-kimi">
+      <div class="card-header">
+        <div class="platform-icon ki-icon">Ki</div>
+        <span class="platform-name">Kimi</span>
+      </div>
+      <div id="ki-content"><div class="skeleton skel-lg"></div><div class="skeleton skel-bar"></div><div class="skeleton skel-sm"></div></div>
+    </div>
+  </div>
+
+  <p class="setup-hint">配置 API Key：将 <code>.env.example</code> 复制为 <code>.env</code> 并填入各平台 Key，然后 <code>npm start</code></p>
+
+</div>
+
+<script>
+function fmt(n) {
+  if (n == null || n === "" || isNaN(n)) return "—";
+  if (Math.abs(n) < 0.01 && n !== 0) return n.toFixed(6);
+  if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(2) + "M";
+  if (Math.abs(n) >= 1e4) return (n / 1000).toFixed(1) + "K";
+  return +n.toFixed(2);
+}
+
+function renderPlatform(id, data, barClass) {
+  const el = document.getElementById(id);
+  if (!data || !data.ok) {
+    el.innerHTML = `<div class="card-error"><div class="err-title">无法获取数据</div><div class="err-detail">${(data && data.error) || "未知错误"}</div></div>`;
+    return;
+  }
+  const r = data;
+  // Try to extract balance / used from raw response
+  let balance = null, used = null, unit = "";
+
+  if (r.balance != null) { balance = r.balance; used = r.used; }
+  else if (r.raw) {
+    const w = r.raw;
+    // DeepSeek format
+    if (Array.isArray(w.balance_infos)) {
+      const b = w.balance_infos[0] || {};
+      balance = b.total_balance ?? b.totalBalance;
+      used = b.topped_up_balance ?? b.toppedUpBalance ?? b.used_balance ?? b.usedBalance;
+      unit = (b.currency || "").replace("CNY","¥").replace("USD","$");
+    }
+    // Kimi format
+    if (w.available_balance != null) balance = w.available_balance;
+    if (w.total_balance != null) used = w.total_balance;
+    if (w.object === "user_balance") {
+      balance = w.available_balance ?? balance;
+      used = w.total_balance ?? used;
+    }
+    // Volcano / generic
+    if (w.data && w.data.total_tokens != null) used = w.data.total_tokens;
+    if (w.data && w.data.available_balance != null) balance = w.data.available_balance;
+    if (w.total_tokens != null) used = w.total_tokens;
+    if (w.balance != null) balance = w.balance;
+    if (!unit) unit = r.currency || "";
+    unit = unit.replace("CNY","¥").replace("USD","$");
+  }
+
+  const pct = (balance != null && used != null && used > 0) ? Math.min(100, ((used) / (balance + used) * 100)).toFixed(1) : null;
+
+  el.innerHTML = `
+    <div class="balance-section">
+      <div class="balance-label">${unit ? "余额 ("+unit+")" : "余额"}</div>
+      <div class="balance-value">${balance != null ? fmt(balance) : "—"}</div>
+    </div>
+    ${pct != null ? `
+    <div class="usage-section">
+      <div class="usage-label"><span>已消费</span><span class="usage-total">${fmt(used)} &middot; ${pct}%</span></div>
+      <div class="usage-bar-track"><div class="usage-bar-fill ${barClass}" style="width:${pct}%"></div></div>
+    </div>` : (used != null ? `<div class="usage-section"><div class="usage-label"><span>已消费</span><span class="usage-total">${fmt(used)}</span></div></div>` : "")}
+    <div class="stats-row">
+      <div class="stat-item">
+        <div class="stat-label">总额</div>
+        <div class="stat-value">${balance != null && used != null ? fmt(balance + used) : "—"}</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">已用占比</div>
+        <div class="stat-value">${pct != null ? pct + "%" : "—"}</div>
+      </div>
+    </div>
+  `;
+}
+
+async function fetchAll() {
+  const btn = document.getElementById("refreshBtn");
+  btn.classList.add("spin");
+  btn.disabled = true;
+
+  document.getElementById("ds-content").innerHTML = '<div class="skeleton skel-lg"></div><div class="skeleton skel-bar"></div><div class="skeleton skel-sm"></div>';
+  document.getElementById("vol-content").innerHTML = '<div class="skeleton skel-lg"></div><div class="skeleton skel-bar"></div><div class="skeleton skel-sm"></div>';
+  document.getElementById("ki-content").innerHTML = '<div class="skeleton skel-lg"></div><div class="skeleton skel-bar"></div><div class="skeleton skel-sm"></div>';
+
+  try {
+    const r = await fetch("/api/all");
+    const d = await r.json();
+    renderPlatform("ds-content", d.deepseek, "ds-bar");
+    renderPlatform("vol-content", d.volcano, "vol-bar");
+    renderPlatform("ki-content", d.kimi, "ki-bar");
+    document.getElementById("updated").textContent = "更新于 " + new Date().toLocaleTimeString("zh-CN", {hour:"2-digit",minute:"2-digit"});
+  } catch (e) {
+    ["ds-content","vol-content","ki-content"].forEach(id => {
+      document.getElementById(id).innerHTML = `<div class="card-error"><div class="err-title">请求失败</div><div class="err-detail">${e.message}</div></div>`;
+    });
+  }
+
+  setTimeout(() => { btn.classList.remove("spin"); btn.disabled = false; }, 600);
+}
+
+fetchAll();
+</script>
+</body>
+</html>
