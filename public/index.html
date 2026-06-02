@@ -305,62 +305,52 @@ function fmt(n) {
   return +n.toFixed(2);
 }
 
-function renderPlatform(id, data, barClass) {
+function renderPlatform(id, data, barClass, platform) {
   const el = document.getElementById(id);
   if (!data || !data.ok) {
     el.innerHTML = `<div class="card-error"><div class="err-title">无法获取数据</div><div class="err-detail">${(data && data.error) || "未知错误"}</div></div>`;
     return;
   }
-  const r = data;
-  // Try to extract balance / used from raw response
-  let balance = null, used = null, unit = "";
 
-  if (r.balance != null) { balance = r.balance; used = r.used; }
-  else if (r.raw) {
-    const w = r.raw;
-    // DeepSeek format
-    if (Array.isArray(w.balance_infos)) {
-      const b = w.balance_infos[0] || {};
-      balance = b.total_balance ?? b.totalBalance;
-      used = b.topped_up_balance ?? b.toppedUpBalance ?? b.used_balance ?? b.usedBalance;
-      unit = (b.currency || "").replace("CNY","¥").replace("USD","$");
-    }
-    // Kimi format
-    if (w.available_balance != null) balance = w.available_balance;
-    if (w.total_balance != null) used = w.total_balance;
-    if (w.object === "user_balance") {
-      balance = w.available_balance ?? balance;
-      used = w.total_balance ?? used;
-    }
-    // Volcano / generic
-    if (w.data && w.data.total_tokens != null) used = w.data.total_tokens;
-    if (w.data && w.data.available_balance != null) balance = w.data.available_balance;
-    if (w.total_tokens != null) used = w.total_tokens;
-    if (w.balance != null) balance = w.balance;
-    if (!unit) unit = r.currency || "";
-    unit = unit.replace("CNY","¥").replace("USD","$");
+  // Volcano has special display (no balance API)
+  if (platform === "volcano") {
+    const models = data.activeModels || 0;
+    const hint = data.hint || "";
+    el.innerHTML = `
+      <div class="balance-section">
+        <div class="balance-label">API 状态</div>
+        <div class="balance-value" style="font-size:20px;">${models > 0 ? "&#9989; 已连接" : "&#10060; 未连接"}</div>
+      </div>
+      <div style="color:var(--text-secondary);font-size:13px;line-height:1.6;">${hint || "请在火山引擎控制台查看余额和消耗详情。"}</div>
+      <div style="margin-top:10px;font-size:12px;color:var(--text-tertiary);">可用模型端点: ${models} 个</div>
+    `;
+    return;
   }
 
-  const pct = (balance != null && used != null && used > 0) ? Math.min(100, ((used) / (balance + used) * 100)).toFixed(1) : null;
+  const balance = data.balance;
+  const used = data.used;
+  const unit = (data.currency || "").replace("CNY","\u00A5").replace("USD","$");
+  const total = balance != null && used != null ? balance + used : null;
+  const pct = total && total > 0 ? Math.min(100, (used / total * 100)).toFixed(1) : null;
 
   el.innerHTML = `
     <div class="balance-section">
-      <div class="balance-label">${unit ? "余额 ("+unit+")" : "余额"}</div>
-      <div class="balance-value">${balance != null ? fmt(balance) : "—"}</div>
+      <div class="balance-label">${unit ? "\u4F59\u989D ("+unit+")" : "\u4F59\u989D"}</div>
+      <div class="balance-value">${balance != null ? fmt(balance) : "\u2014"}</div>
     </div>
-    ${pct != null ? `
+    ${used != null ? `
     <div class="usage-section">
-      <div class="usage-label"><span>已消费</span><span class="usage-total">${fmt(used)} &middot; ${pct}%</span></div>
-      <div class="usage-bar-track"><div class="usage-bar-fill ${barClass}" style="width:${pct}%"></div></div>
-    </div>` : (used != null ? `<div class="usage-section"><div class="usage-label"><span>已消费</span><span class="usage-total">${fmt(used)}</span></div></div>` : "")}
+      <div class="usage-label"><span>\u5DF2\u6D88\u8D39</span><span class="usage-total">${fmt(used)}${pct ? " \u00B7 "+pct+"%" : ""}</span></div>
+      <div class="usage-bar-track"><div class="usage-bar-fill ${barClass}" style="width:${pct || 0}%"></div></div>
+    </div>` : ""}
     <div class="stats-row">
       <div class="stat-item">
-        <div class="stat-label">总额</div>
-        <div class="stat-value">${balance != null && used != null ? fmt(balance + used) : "—"}</div>
+        <div class="stat-label">\u603B\u989D</div>
+        <div class="stat-value">${total != null ? fmt(total) : "\u2014"}</div>
       </div>
       <div class="stat-item">
-        <div class="stat-label">已用占比</div>
-        <div class="stat-value">${pct != null ? pct + "%" : "—"}</div>
+        <div class="stat-label">\u5DF2\u7528\u5360\u6BD4</div>
+        <div class="stat-value">${pct != null ? pct + "%" : "\u2014"}</div>
       </div>
     </div>
   `;
@@ -378,9 +368,9 @@ async function fetchAll() {
   try {
     const r = await fetch("/api/all");
     const d = await r.json();
-    renderPlatform("ds-content", d.deepseek, "ds-bar");
-    renderPlatform("vol-content", d.volcano, "vol-bar");
-    renderPlatform("ki-content", d.kimi, "ki-bar");
+    renderPlatform("ds-content", d.deepseek, "ds-bar", "deepseek");
+    renderPlatform("vol-content", d.volcano, "vol-bar", "volcano");
+    renderPlatform("ki-content", d.kimi, "ki-bar", "kimi");
     document.getElementById("updated").textContent = "更新于 " + new Date().toLocaleTimeString("zh-CN", {hour:"2-digit",minute:"2-digit"});
   } catch (e) {
     ["ds-content","vol-content","ki-content"].forEach(id => {
