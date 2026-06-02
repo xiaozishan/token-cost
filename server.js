@@ -86,6 +86,24 @@ app.get("/api/all", async (_req, res) => {
   res.json({ deepseek, volcano, kimi });
 });
 
-app.listen(PORT, () => {
-  console.log(`token-cost running at http://localhost:${PORT}`);
+const os = require("os");
+
+function getLocalIPs() {
+  const ifaces = os.networkInterfaces();
+  const ips = [];
+  for (const name of Object.keys(ifaces)) {
+    for (const iface of ifaces[name]) {
+      if (iface.family === "IPv4" && !iface.internal) {
+        ips.push(iface.address);
+      }
+    }
+  }
+  return ips;
+}
+
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`token-cost running at:`);
+  console.log(`  http://localhost:${PORT}`);
+  getLocalIPs().forEach((ip) => console.log(`  http://${ip}:${PORT}`));
+  console.log("Other devices on the same network can use the IP addresses above.");
 });
