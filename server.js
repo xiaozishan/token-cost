@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const path = require("path");
+const crypto = require("crypto");
 
 const app = express();
 const PORT = process.env.PORT || 3456;
@@ -8,8 +9,69 @@ const PORT = process.env.PORT || 3456;
 app.use(express.static(path.join(__dirname, "public")));
 
 function fmtNumber(n) {
-  if (n == null || isNaN(n)) return null;
-  return +n.toFixed(4);
+  if (n == null || n === "") return null;
+  const num = Number(n);
+  if (isNaN(num)) return null;
+  return +num.toFixed(4);
+}
+
+// ─── Volcengine SigV4 ──────────────────────────────────────
+function sha256Hex(data) {
+  return crypto.createHash("sha256").update(data).digest("hex");
+}
+
+function hmacHex(key, data) {
+  return crypto.createHmac("sha256", key).update(data).digest();
+}
+
+function volcSign(method, host, pathname, query, ak, sk) {
+  const now = new Date();
+  const isoStr = now.toISOString().replace(/\.\d{3}Z$/, "Z");
+  const ts = isoStr.replace(/[:\-]|\.\d{3}/g, "");
+  const dateStamp = ts.slice(0, 8);
+
+  const region = "cn-beijing";
+  const service = "billing";
+  const algorithm = "HMAC-SHA256";
+
+  const bodyHash = sha256Hex("");
+
+  // Only host and x-date are signable (content-type is unsignable per Volcengine spec)
+  const signedHeadersStr = "host;x-date";
+  const canonicalHeaders =
+    "host:" + host + "\n" +
+    "x-date:" + ts + "\n";
+
+  const canonicalRequest = [
+    method,
+    pathname,
+    query,
+    canonicalHeaders,
+    signedHeadersStr,
+    bodyHash,
+  ].join("\n");
+
+  const credentialScope = dateStamp + "/" + region + "/" + service + "/request";
+  const stringToSign = [
+    algorithm,
+    ts,
+    credentialScope,
+    sha256Hex(canonicalRequest),
+  ].join("\n");
+
+  const kDate = hmacHex(sk, dateStamp);
+  const kRegion = hmacHex(kDate, region);
+  const kService = hmacHex(kRegion, service);
+  const kSigning = hmacHex(kService, "request");
+  const signature = crypto.createHmac("sha256", kSigning).update(stringToSign).digest("hex");
+
+  const authorization =
+    algorithm +
+    " Credential=" + ak + "/" + credentialScope +
+    ", SignedHeaders=" + signedHeadersStr +
+    ", Signature=" + signature;
+
+  return { authorization, xDate: ts };
 }
 
 // ─── DeepSeek ──────────────────────────────────────────────
@@ -22,14 +84,13 @@ app.get("/api/deepseek", async (_req, res) => {
       headers: { Authorization: `Bearer ${key}` },
     });
     const data = await r.json();
-    if (!data || !data.is_available) {
+    if (data && data.is_available) {
+      const b = data.balance_infos[0];
       return res.json({
         ok: true,
-        balance: fmtNumber(data?.balance_infos?.[0]?.total_balance),
+        balance: fmtNumber(b.total_balance),
         used: fmtNumber(
-          (+(data?.balance_infos?.[0]?.topped_up_balance || 0) +
-            +(data?.balance_infos?.[0]?.granted_balance || 0)) -
-            +(data?.balance_infos?.[0]?.total_balance || 0)
+          +b.topped_up_balance + +b.granted_balance - +b.total_balance
         ),
         currency: "CNY",
       });
@@ -42,45 +103,74 @@ app.get("/api/deepseek", async (_req, res) => {
 
 // ─── Volcano Engine (Ark) ──────────────────────────────────
 app.get("/api/volcano", async (_req, res) => {
-  const key = process.env.VOLCANO_API_KEY;
-  if (!key) return res.json({ ok: false, error: "未配置 VOLCANO_API_KEY" });
+  const arkKey = process.env.VOLCANO_API_KEY;
+  const ak = process.env.VOLCANO_AK;
+  const sk = process.env.VOLCANO_SK;
+
+  if (!arkKey && !ak)
+    return res.json({ ok: false, error: "未配置 VOLCANO_API_KEY 或 VOLCANO_AK/SK" });
 
   try {
-    // Ark platform doesn't expose billing/usage via API.
-    // Verify key is valid by listing models, then try billing.
+    // 1. Verify Ark key by listing models
     const headers = {
-      Authorization: `Bearer ${key}`,
+      Authorization: `Bearer ${arkKey}`,
       "Content-Type": "application/json",
     };
 
-    const [modelsR, billingR] = await Promise.allSettled([
-      fetch("https://ark.cn-beijing.volces.com/api/v3/models", { headers }),
-      fetch(
-        "https://open.volcengineapi.com/?Action=QueryBalanceAcct&Version=2022-01-01",
-        { headers }
-      ),
-    ]);
-
-    const models =
-      modelsR.status === "fulfilled" && modelsR.value.ok
-        ? await modelsR.value.json()
-        : null;
-
-    const billing =
-      billingR.status === "fulfilled" && billingR.value.ok
-        ? await billingR.value.json()
-        : null;
-
+    const modelsR = await fetch(
+      "https://ark.cn-beijing.volces.com/api/v3/models",
+      { headers }
+    ).catch(() => null);
+    const models = modelsR && modelsR.ok ? await modelsR.json() : null;
     const activeModels = models?.data?.length || 0;
+
+    // 2. Query billing via Volcengine OpenAPI with AK/SK
+    let balance = null, billingError = null;
+    if (ak && sk) {
+      try {
+        const host = "billing.volcengineapi.com";
+        const query = "Action=QueryBalanceAcct&Version=2022-01-01";
+        const sig = volcSign("GET", host, "/", query, ak, sk);
+
+        const billingR = await fetch(
+          `https://${host}/?${query}`,
+          {
+            headers: {
+              Host: host,
+              "X-Date": sig.xDate,
+              Authorization: sig.authorization,
+            },
+          }
+        );
+        const billingData = await billingR.json();
+
+        if (billingData.ResponseMetadata?.Error) {
+          const err = billingData.ResponseMetadata.Error;
+          if (err.Code === "InvalidCredential" || err.Code === "Unauthorized") {
+            billingError = "AK/SK 无权访问计费API，请在控制台为该密钥授权 Billing 权限";
+          } else if (err.Code === "InvalidAction") {
+            billingError = "QueryBalanceAcct API 不可用，可能已变更";
+          } else {
+            billingError = err.Message || err.Code || "签名验证失败";
+          }
+        } else if (billingData.Result?.AccountBalance !== undefined) {
+          balance = parseFloat(billingData.Result.AccountBalance);
+        }
+      } catch (_) {
+        billingError = "计费API请求失败";
+      }
+    }
 
     return res.json({
       ok: true,
       activeModels,
-      models,
-      billing,
-      hint: activeModels
-        ? "API Key 有效。详细余额/消耗需在火山引擎控制台查看。"
-        : "API Key 无效或已过期",
+      balance: fmtNumber(balance),
+      currency: "CNY",
+      hint: billingError
+        ? billingError
+        : ak && sk
+          ? (balance != null ? "" : "未查询到余额")
+          : "未配置 AK/SK，仅验证 API Key 状态。",
     });
   } catch (e) {
     return res.json({ ok: false, error: e.message });
