@@ -107,16 +107,16 @@ app.get("/api/volcano", async (_req, res) => {
   const ak = process.env.VOLCANO_AK;
   const sk = process.env.VOLCANO_SK;
 
-  if (!arkKey && !ak)
-    return res.json({ ok: false, error: "未配置 VOLCANO_API_KEY 或 VOLCANO_AK/SK" });
+  if (!arkKey)
+    return res.json({ ok: false, error: "未配置 VOLCANO_API_KEY" });
 
   try {
-    // 1. Verify Ark key by listing models
     const headers = {
       Authorization: `Bearer ${arkKey}`,
       "Content-Type": "application/json",
     };
 
+    // 1. List models to verify Ark key
     const modelsR = await fetch(
       "https://ark.cn-beijing.volces.com/api/v3/models",
       { headers }
@@ -124,7 +124,7 @@ app.get("/api/volcano", async (_req, res) => {
     const models = modelsR && modelsR.ok ? await modelsR.json() : null;
     const activeModels = models?.data?.length || 0;
 
-    // 2. Query billing via Volcengine OpenAPI with AK/SK
+    // 2. Query billing via Volcengine OpenAPI with AK/SK (SigV4)
     let balance = null, billingError = null;
     if (ak && sk) {
       try {
@@ -146,13 +146,17 @@ app.get("/api/volcano", async (_req, res) => {
 
         if (billingData.ResponseMetadata?.Error) {
           const err = billingData.ResponseMetadata.Error;
-          if (err.Code === "InvalidCredential" || err.Code === "Unauthorized") {
+          if (err.Code === "SignatureDoesNotMatch") {
+            billingError = "AK/SK 签名验证失败，请确认：1) SK 完整正确 2) 该密钥已在火山引擎控制台授权 BillingFullAccess 权限";
+          } else if (err.Code === "InvalidCredential" || err.Code === "Unauthorized") {
             billingError = "AK/SK 无权访问计费API，请在控制台为该密钥授权 Billing 权限";
           } else if (err.Code === "InvalidAction") {
             billingError = "QueryBalanceAcct API 不可用，可能已变更";
           } else {
-            billingError = err.Message || err.Code || "签名验证失败";
+            billingError = err.Message || err.Code || "未知错误";
           }
+        } else if (billingData.Result?.AvailableBalance !== undefined) {
+          balance = parseFloat(billingData.Result.AvailableBalance);
         } else if (billingData.Result?.AccountBalance !== undefined) {
           balance = parseFloat(billingData.Result.AccountBalance);
         }
@@ -168,9 +172,12 @@ app.get("/api/volcano", async (_req, res) => {
       currency: "CNY",
       hint: billingError
         ? billingError
-        : ak && sk
-          ? (balance != null ? "" : "未查询到余额")
-          : "未配置 AK/SK，仅验证 API Key 状态。",
+        : !ak || !sk
+          ? "未配置 AK/SK，仅显示 Ark API 状态。配置后可查询账户余额。"
+          : balance != null
+            ? ""
+            : "未查询到余额数据",
+      billingOk: balance != null,
     });
   } catch (e) {
     return res.json({ ok: false, error: e.message });

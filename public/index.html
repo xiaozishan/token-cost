@@ -317,13 +317,22 @@ function renderPlatform(id, data, barClass, platform) {
     const balance = data.balance;
     const models = data.activeModels || 0;
     const hint = data.hint || "";
+    const billingOk = data.billingOk;
     const unit = (data.currency || "").replace("CNY","\u00A5").replace("USD","$");
+    const arkStatus = models > 0
+      ? '<span style="color:#10b981">&#9989; Ark \u5DF2\u8FDE\u63A5</span>'
+      : '<span style="color:#ef4444">&#10060; Ark \u672A\u8FDE\u63A5</span>';
+    const billingStatus = billingOk
+      ? '<span style="color:#10b981">&#9989; \u8BA1\u8D39\u5DF2\u8FDE\u63A5</span>'
+      : '<span style="color:#f59e0b">&#9888; \u8BA1\u8D39\u672A\u8FDE\u63A5</span>';
+
     el.innerHTML = `
       <div class="balance-section">
-        <div class="balance-label">${models > 0 ? "&#9989; API \u5DF2\u8FDE\u63A5" : "&#10060; \u672A\u8FDE\u63A5"}${hint ? " · "+hint : ""}</div>
+        <div class="balance-label">${arkStatus} &nbsp; ${billingStatus}${hint ? '<br><span style="font-size:11px;color:var(--text-tertiary))">'+hint+'</span>' : ''}</div>
         <div class="balance-value">${balance != null ? fmt(balance) + " <span class=\"balance-unit\">"+unit+"</span>" : "\u2014"}</div>
       </div>
       <div style="font-size:12px;color:var(--text-tertiary);margin-top:4px;">\u53EF\u7528\u6A21\u578B: ${models} \u4E2A</div>
+      ${!billingOk ? '<div style="margin-top:8px;font-size:11px;color:var(--text-tertiary);border-top:1px solid var(--border);padding-top:8px;">\u8BA1\u8D39\u67E5\u8BE2\u9700\u8981\u5728<a href="https://console.volcengine.com/iam/keymanage/" target="_blank" style="color:var(--accent)">IAM \u63A7\u5236\u53F0</a>\u4E3A AK/SK \u6DFB\u52A0 <b>BillingFullAccess</b> \u6743\u9650</div>' : ''}
     `;
     return;
   }
