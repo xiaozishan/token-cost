@@ -1,0 +1,25 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace 'com.tokencost.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.tokencost.app'
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName '2.0.0'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.preference:preference:1.2.1'
+}
