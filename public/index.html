@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#4f46e5">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icon-192.png">
 <title>Token Cost</title>
 <style>
 :root {
@@ -463,6 +466,15 @@ function toggleAuto(){
   const btn=document.getElementById("autoBtn");
   if(autoTimer){ btn.classList.remove("active"); stopCountdown(); autoTimer=null; document.getElementById("countdown").textContent=""; }
   else{ btn.classList.add("active"); autoCountdown=AUTO_INTERVAL; updateCountdownDisplay(); startCountdown(); }
+}
+
+// ─── PWA: Register Service Worker ───
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').then(() => {
+      console.log('SW registered');
+    }).catch(() => {});
+  });
 }
 
 fetchAll();
