@@ -6,8 +6,23 @@ const crypto = require("crypto");
 const app = express();
 const PORT = process.env.PORT || 3456;
 
+app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
+// ─── In-memory user config (from UI) ───────────────────────
+const userConfig = {};
+
+function getKey(envName, platform) {
+  return userConfig[platform] || process.env[envName] || "";
+}
+
+function getKeys(envName1, envName2, platform1, platform2) {
+  const k1 = userConfig[platform1] || process.env[envName1] || "";
+  const k2 = userConfig[platform2] || process.env[envName2] || "";
+  return [k1, k2];
+}
+
+// ─── Helpers ───────────────────────────────────────────────
 function fmtNumber(n) {
   if (n == null || n === "") return null;
   const num = Number(n);
@@ -36,7 +51,6 @@ function volcSign(method, host, pathname, query, ak, sk) {
 
   const bodyHash = sha256Hex("");
 
-  // Only host and x-date are signable (content-type is unsignable per Volcengine spec)
   const signedHeadersStr = "host;x-date";
   const canonicalHeaders =
     "host:" + host + "\n" +
@@ -74,9 +88,9 @@ function volcSign(method, host, pathname, query, ak, sk) {
   return { authorization, xDate: ts };
 }
 
-// ─── Shared fetch helpers ──────────────────────────────────
+// ─── DeepSeek ──────────────────────────────────────────────
 async function fetchDeepSeek() {
-  const key = process.env.DEEPSEEK_API_KEY;
+  const key = getKey("DEEPSEEK_API_KEY", "deepseek");
   if (!key) return { ok: false, error: "未配置 DEEPSEEK_API_KEY" };
   try {
     const r = await fetch("https://api.deepseek.com/user/balance", {
@@ -98,7 +112,7 @@ async function fetchDeepSeek() {
   }
 }
 
-// ─── Volcano Engine: Ark client ────────────────────────────
+// ─── Volcano Engine ────────────────────────────────────────
 async function queryArkModels(apiKey) {
   if (!apiKey) return { ok: false, activeModels: 0 };
   try {
@@ -113,7 +127,6 @@ async function queryArkModels(apiKey) {
   }
 }
 
-// ─── Volcano Engine: Billing client ────────────────────────
 function parseVolcanoBalance(result) {
   if (!result) return null;
   const raw = result.AvailableBalance ?? result.AccountBalance ?? null;
@@ -174,7 +187,6 @@ async function queryBillingBalance(ak, sk) {
   }
 }
 
-// ─── Volcano Engine: Presenter ─────────────────────────────
 function presentVolcanoResult(arkResult, billingResult) {
   const diag = billingResult.diagnostics;
   return {
@@ -188,24 +200,26 @@ function presentVolcanoResult(arkResult, billingResult) {
   };
 }
 
-// ─── Volcano Engine: Orchestrator ──────────────────────────
 async function fetchVolcano() {
-  const arkKey = process.env.VOLCANO_API_KEY;
+  const [arkKey, ak, sk] = getKeys("VOLCANO_API_KEY", "VOLCANO_SK", "volcano_ark", "volcano_billing");
+  // For AK we need separate lookup
+  const billingAk = userConfig["volcano_ak"] || process.env["VOLCANO_AK"] || "";
+  
   if (!arkKey) return { ok: false, error: "未配置 VOLCANO_API_KEY" };
   try {
     const arkResult = await queryArkModels(arkKey);
-    const billingResult = await queryBillingBalance(
-      process.env.VOLCANO_AK,
-      process.env.VOLCANO_SK,
-    );
+    // Use the correct SK for billing
+    const billingSk = userConfig["volcano_sk"] || process.env["VOLCANO_SK"] || "";
+    const billingResult = await queryBillingBalance(billingAk, billingSk);
     return presentVolcanoResult(arkResult, billingResult);
   } catch (e) {
     return { ok: false, error: e.message };
   }
 }
 
+// ─── Kimi ──────────────────────────────────────────────────
 async function fetchKimi() {
-  const key = process.env.KIMI_API_KEY;
+  const key = getKey("KIMI_API_KEY", "kimi");
   if (!key) return { ok: false, error: "未配置 KIMI_API_KEY" };
   try {
     const r = await fetch("https://api.moonshot.cn/v1/users/me/balance", {
@@ -229,7 +243,32 @@ async function fetchKimi() {
   }
 }
 
-// ─── Routes ────────────────────────────────────────────────
+// ─── Config routes ─────────────────────────────────────────
+app.post("/api/config", (req, res) => {
+  const { platform, key } = req.body;
+  if (!platform || key == null) {
+    return res.status(400).json({ ok: false, error: "缺少 platform 或 key" });
+  }
+  if (key === "") {
+    delete userConfig[platform];
+  } else {
+    userConfig[platform] = key;
+  }
+  res.json({ ok: true, platform, configured: !!userConfig[platform] });
+});
+
+app.get("/api/config", (_req, res) => {
+  res.json({
+    deepseek: !!userConfig["deepseek"] || !!process.env.DEEPSEEK_API_KEY,
+    kimi: !!userConfig["kimi"] || !!process.env.KIMI_API_KEY,
+    volcano_ark: !!userConfig["volcano_ark"] || !!process.env.VOLCANO_API_KEY,
+    volcano_ak: !!userConfig["volcano_ak"] || !!process.env.VOLCANO_AK,
+    volcano_sk: !!userConfig["volcano_sk"] || !!process.env.VOLCANO_SK,
+    proxy: !!userConfig["proxy"] || !!process.env.HTTP_PROXY,
+  });
+});
+
+// ─── Balance routes ────────────────────────────────────────
 app.get("/api/deepseek", async (_req, res) => { res.json(await fetchDeepSeek()); });
 app.get("/api/volcano", async (_req, res) => { res.json(await fetchVolcano()); });
 app.get("/api/kimi", async (_req, res) => { res.json(await fetchKimi()); });
@@ -246,6 +285,7 @@ app.get("/api/all", async (_req, res) => {
   });
 });
 
+// ─── Startup ───────────────────────────────────────────────
 const os = require("os");
 
 function getLocalIPs() {
