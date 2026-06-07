@@ -74,11 +74,10 @@ function volcSign(method, host, pathname, query, ak, sk) {
   return { authorization, xDate: ts };
 }
 
-// ─── DeepSeek ──────────────────────────────────────────────
-app.get("/api/deepseek", async (_req, res) => {
+// ─── Shared fetch helpers ──────────────────────────────────
+async function fetchDeepSeek() {
   const key = process.env.DEEPSEEK_API_KEY;
-  if (!key) return res.json({ ok: false, error: "未配置 DEEPSEEK_API_KEY" });
-
+  if (!key) return { ok: false, error: "未配置 DEEPSEEK_API_KEY" };
   try {
     const r = await fetch("https://api.deepseek.com/user/balance", {
       headers: { Authorization: `Bearer ${key}` },
@@ -86,109 +85,128 @@ app.get("/api/deepseek", async (_req, res) => {
     const data = await r.json();
     if (data && data.is_available) {
       const b = data.balance_infos[0];
-      return res.json({
+      return {
         ok: true,
         balance: fmtNumber(b.total_balance),
-        used: fmtNumber(
-          +b.topped_up_balance + +b.granted_balance - +b.total_balance
-        ),
+        used: fmtNumber(+b.topped_up_balance + +b.granted_balance - +b.total_balance),
         currency: "CNY",
-      });
+      };
     }
-    return res.json({ ok: false, error: data?.error?.message || "未知错误" });
+    return { ok: false, error: data?.error?.message || "未知错误" };
   } catch (e) {
-    return res.json({ ok: false, error: e.message });
+    return { ok: false, error: e.message };
   }
-});
+}
 
-// ─── Volcano Engine (Ark) ──────────────────────────────────
-app.get("/api/volcano", async (_req, res) => {
-  const arkKey = process.env.VOLCANO_API_KEY;
-  const ak = process.env.VOLCANO_AK;
-  const sk = process.env.VOLCANO_SK;
-
-  if (!arkKey)
-    return res.json({ ok: false, error: "未配置 VOLCANO_API_KEY" });
-
+// ─── Volcano Engine: Ark client ────────────────────────────
+async function queryArkModels(apiKey) {
+  if (!apiKey) return { ok: false, activeModels: 0 };
   try {
-    const headers = {
-      Authorization: `Bearer ${arkKey}`,
-      "Content-Type": "application/json",
+    const r = await fetch("https://ark.cn-beijing.volces.com/api/v3/models", {
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    });
+    if (!r.ok) return { ok: false, activeModels: 0 };
+    const data = await r.json();
+    return { ok: true, activeModels: data?.data?.length || 0 };
+  } catch (_) {
+    return { ok: false, activeModels: 0 };
+  }
+}
+
+// ─── Volcano Engine: Billing client ────────────────────────
+function parseVolcanoBalance(result) {
+  if (!result) return null;
+  const raw = result.AvailableBalance ?? result.AccountBalance ?? null;
+  return raw == null ? null : fmtNumber(Number(raw));
+}
+
+function classifyBillingError(error) {
+  if (!error) return null;
+  const code = error.Code || "";
+  if (code === "SignatureDoesNotMatch") {
+    return {
+      code: "SIGNATURE_MISMATCH",
+      detail: "AK/SK 签名验证失败，请确认：1) SK 完整正确 2) 该密钥已在火山引擎控制台授权 BillingFullAccess 权限",
     };
+  }
+  if (code === "InvalidCredential" || code === "Unauthorized") {
+    return {
+      code: "UNAUTHORIZED",
+      detail: "AK/SK 无权访问计费API，请在控制台为该密钥授权 Billing 权限",
+    };
+  }
+  return { code: "BILLING_ERROR", detail: error.Message || code || "未知错误" };
+}
 
-    // 1. List models to verify Ark key
-    const modelsR = await fetch(
-      "https://ark.cn-beijing.volces.com/api/v3/models",
-      { headers }
-    ).catch(() => null);
-    const models = modelsR && modelsR.ok ? await modelsR.json() : null;
-    const activeModels = models?.data?.length || 0;
+async function queryBillingBalance(ak, sk) {
+  if (!ak || !sk) {
+    return {
+      ok: true,
+      balance: null,
+      diagnostics: {
+        code: "AK_SK_MISSING",
+        detail: "未配置 AK/SK，仅显示 Ark API 状态。配置后可查询账户余额。",
+      },
+    };
+  }
+  try {
+    const host = "billing.volcengineapi.com";
+    const query = "Action=QueryBalanceAcct&Version=2022-01-01";
+    const sig = volcSign("GET", host, "/", query, ak, sk);
+    const r = await fetch(`https://${host}/?${query}`, {
+      headers: { Host: host, "X-Date": sig.xDate, Authorization: sig.authorization },
+    });
+    const data = await r.json();
 
-    // 2. Query billing via Volcengine OpenAPI with AK/SK (SigV4)
-    let balance = null, billingError = null;
-    if (ak && sk) {
-      try {
-        const host = "billing.volcengineapi.com";
-        const query = "Action=QueryBalanceAcct&Version=2022-01-01";
-        const sig = volcSign("GET", host, "/", query, ak, sk);
-
-        const billingR = await fetch(
-          `https://${host}/?${query}`,
-          {
-            headers: {
-              Host: host,
-              "X-Date": sig.xDate,
-              Authorization: sig.authorization,
-            },
-          }
-        );
-        const billingData = await billingR.json();
-
-        if (billingData.ResponseMetadata?.Error) {
-          const err = billingData.ResponseMetadata.Error;
-          if (err.Code === "SignatureDoesNotMatch") {
-            billingError = "AK/SK 签名验证失败，请确认：1) SK 完整正确 2) 该密钥已在火山引擎控制台授权 BillingFullAccess 权限";
-          } else if (err.Code === "InvalidCredential" || err.Code === "Unauthorized") {
-            billingError = "AK/SK 无权访问计费API，请在控制台为该密钥授权 Billing 权限";
-          } else if (err.Code === "InvalidAction") {
-            billingError = "QueryBalanceAcct API 不可用，可能已变更";
-          } else {
-            billingError = err.Message || err.Code || "未知错误";
-          }
-        } else if (billingData.Result?.AvailableBalance !== undefined) {
-          balance = parseFloat(billingData.Result.AvailableBalance);
-        } else if (billingData.Result?.AccountBalance !== undefined) {
-          balance = parseFloat(billingData.Result.AccountBalance);
-        }
-      } catch (_) {
-        billingError = "计费API请求失败";
-      }
+    const billingErr = data.ResponseMetadata?.Error;
+    if (billingErr) {
+      return { ok: true, balance: null, diagnostics: classifyBillingError(billingErr) };
     }
 
-    return res.json({
+    const balance = parseVolcanoBalance(data.Result);
+    return {
       ok: true,
-      activeModels,
-      balance: fmtNumber(balance),
-      currency: "CNY",
-      hint: billingError
-        ? billingError
-        : !ak || !sk
-          ? "未配置 AK/SK，仅显示 Ark API 状态。配置后可查询账户余额。"
-          : balance != null
-            ? ""
-            : "未查询到余额数据",
-      billingOk: balance != null,
-    });
-  } catch (e) {
-    return res.json({ ok: false, error: e.message });
+      balance,
+      diagnostics: balance != null ? null : { code: "BALANCE_NOT_FOUND", detail: "未查询到余额数据" },
+    };
+  } catch (_) {
+    return { ok: true, balance: null, diagnostics: { code: "BILLING_REQUEST_FAILED", detail: "计费API请求失败" } };
   }
-});
+}
 
-// ─── Kimi / Moonshot ──────────────────────────────────────
-app.get("/api/kimi", async (_req, res) => {
+// ─── Volcano Engine: Presenter ─────────────────────────────
+function presentVolcanoResult(arkResult, billingResult) {
+  const diag = billingResult.diagnostics;
+  return {
+    ok: true,
+    activeModels: arkResult.activeModels,
+    balance: billingResult.balance,
+    currency: "CNY",
+    diagnostics: diag,
+    hint: diag ? diag.detail : "",
+    billingOk: billingResult.balance != null,
+  };
+}
+
+// ─── Volcano Engine: Orchestrator ──────────────────────────
+async function fetchVolcano() {
+  const arkKey = process.env.VOLCANO_API_KEY;
+  if (!arkKey) return { ok: false, error: "未配置 VOLCANO_API_KEY" };
+  try {
+    const arkResult = await queryArkModels(arkKey);
+    const billingResult = await queryBillingBalance(
+      process.env.VOLCANO_AK,
+      process.env.VOLCANO_SK,
+    );
+    return presentVolcanoResult(arkResult, billingResult);
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+async function fetchKimi() {
   const key = process.env.KIMI_API_KEY;
-  if (!key) return res.json({ ok: false, error: "未配置 KIMI_API_KEY" });
-
+  if (!key) return { ok: false, error: "未配置 KIMI_API_KEY" };
   try {
     const r = await fetch("https://api.moonshot.cn/v1/users/me/balance", {
       headers: { Authorization: `Bearer ${key}` },
@@ -198,27 +216,34 @@ app.get("/api/kimi", async (_req, res) => {
       const cash = +data.data.cash_balance || 0;
       const voucher = +data.data.voucher_balance || 0;
       const available = +data.data.available_balance;
-      return res.json({
+      return {
         ok: true,
         balance: fmtNumber(available),
         used: fmtNumber(cash + voucher - available),
         currency: "CNY",
-      });
+      };
     }
-    return res.json({ ok: false, error: data?.message || "未知错误" });
+    return { ok: false, error: data?.message || "未知错误" };
   } catch (e) {
-    return res.json({ ok: false, error: e.message });
+    return { ok: false, error: e.message };
   }
-});
+}
 
-// ─── Combined endpoint ────────────────────────────────────
+// ─── Routes ────────────────────────────────────────────────
+app.get("/api/deepseek", async (_req, res) => { res.json(await fetchDeepSeek()); });
+app.get("/api/volcano", async (_req, res) => { res.json(await fetchVolcano()); });
+app.get("/api/kimi", async (_req, res) => { res.json(await fetchKimi()); });
+
 app.get("/api/all", async (_req, res) => {
-  const [deepseek, volcano, kimi] = await Promise.all([
-    fetch(`http://localhost:${PORT}/api/deepseek`).then((r) => r.json()),
-    fetch(`http://localhost:${PORT}/api/volcano`).then((r) => r.json()),
-    fetch(`http://localhost:${PORT}/api/kimi`).then((r) => r.json()),
+  const results = await Promise.allSettled([
+    fetchDeepSeek(), fetchVolcano(), fetchKimi(),
   ]);
-  res.json({ deepseek, volcano, kimi });
+  const unwrap = (r) => r.status === "fulfilled" ? r.value : { ok: false, error: r.reason?.message || "请求失败" };
+  res.json({
+    deepseek: unwrap(results[0]),
+    volcano: unwrap(results[1]),
+    kimi: unwrap(results[2]),
+  });
 });
 
 const os = require("os");

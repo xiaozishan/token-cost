@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="auto">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -30,8 +30,9 @@
   --error-text: #dc2626;
 }
 
+/* system dark */
 @media (prefers-color-scheme: dark) {
-  :root {
+  [data-theme="auto"] {
     --bg: #0f1117;
     --card-bg: #1a1d27;
     --text: #e5e7eb;
@@ -40,15 +41,37 @@
     --border: #2d3040;
     --shadow: 0 1px 3px rgba(0,0,0,.3);
     --shadow-lg: 0 4px 8px rgba(0,0,0,.35);
-    --deepseek-bg: rgba(79,110,247,.12);
-    --volcano-bg: rgba(240,78,48,.12);
-    --kimi-bg: rgba(16,185,129,.12);
+    --deepseek-bg: rgba(79,110,247,.14);
+    --volcano-bg: rgba(240,78,48,.14);
+    --kimi-bg: rgba(16,185,129,.14);
     --skeleton: #2d3040;
     --skeleton-shine: #363a4d;
     --error-bg: rgba(220,38,38,.12);
     --accent-dim: rgba(79,70,229,.2);
   }
 }
+
+/* manual dark */
+[data-theme="dark"] {
+  --bg: #0f1117;
+  --card-bg: #1a1d27;
+  --text: #e5e7eb;
+  --text-secondary: #9ca3af;
+  --text-tertiary: #6b7280;
+  --border: #2d3040;
+  --shadow: 0 1px 3px rgba(0,0,0,.3);
+  --shadow-lg: 0 4px 8px rgba(0,0,0,.35);
+  --deepseek-bg: rgba(79,110,247,.14);
+  --volcano-bg: rgba(240,78,48,.14);
+  --kimi-bg: rgba(16,185,129,.14);
+  --skeleton: #2d3040;
+  --skeleton-shine: #363a4d;
+  --error-bg: rgba(220,38,38,.12);
+  --accent-dim: rgba(79,70,229,.2);
+}
+
+/* manual light — keep defaults, no override needed */
+[data-theme="light"] { }
 
 * { margin:0; padding:0; box-sizing:border-box; }
 
@@ -62,9 +85,9 @@ body {
 }
 
 .container {
-  max-width: 960px;
+  max-width: 1000px;
   margin: 0 auto;
-  padding: 24px 16px 48px;
+  padding: 28px 16px 56px;
 }
 
 /* ─── Header ─── */
@@ -74,8 +97,10 @@ body {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
-  margin-bottom: 28px;
+  margin-bottom: 24px;
 }
+
+.header-left { display: flex; align-items: baseline; gap: 10px; }
 
 .header h1 {
   font-size: 26px;
@@ -83,13 +108,19 @@ body {
   letter-spacing: -.02em;
 }
 
+.header-sub {
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
 .header-right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
-.refresh-btn {
+/* ─── Buttons ─── */
+.btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -98,23 +129,60 @@ body {
   background: var(--card-bg);
   color: var(--text);
   border-radius: 999px;
-  font-size: 14px;
+  font-size: 13px;
   cursor: pointer;
   transition: all .15s;
   white-space: nowrap;
+  font-family: inherit;
 }
-.refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
-.refresh-btn:active { transform: scale(.97); }
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn:active { transform: scale(.97); }
+.btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn.active:hover { opacity: .9; }
+.btn:disabled { opacity: .5; pointer-events: none; }
+
+.theme-btn { padding: 8px 10px; }
+
 .refresh-btn.spin .icon-refresh { animation: spin .6s linear; }
 
-@keyframes spin { to { transform: rotate(360deg); } }
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
-@keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
-
-.last-updated {
+.countdown {
   font-size: 12px;
   color: var(--text-tertiary);
-  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  min-width: 50px;
+  text-align: center;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+
+/* ─── Summary bar ─── */
+.summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.summary-item {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+}
+.summary-label {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-bottom: 4px;
+}
+.summary-value {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ─── Grid ─── */
@@ -137,10 +205,25 @@ body {
   border-radius: var(--radius);
   padding: 22px 20px 18px;
   box-shadow: var(--shadow);
-  transition: box-shadow .2s, transform .2s;
+  transition: box-shadow .2s, transform .2s, border-color .2s;
   animation: fadeIn .35s ease;
+  position: relative;
+  overflow: hidden;
 }
 .card:hover { box-shadow: var(--shadow-lg); }
+.card.loading { pointer-events: none; }
+
+.card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  border-radius: var(--radius) var(--radius) 0 0;
+  opacity: .85;
+}
+.card.ds::before { background: var(--deepseek); }
+.card.vol::before { background: var(--volcano); }
+.card.ki::before { background: var(--kimi); }
 
 .card-header {
   display: flex;
@@ -149,21 +232,30 @@ body {
   margin-bottom: 18px;
 }
 
-.platform-icon {
-  width: 38px; height: 38px;
+.platform-logo {
+  width: 40px; height: 40px;
   border-radius: var(--radius-sm);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 20px; font-weight: 700;
+  object-fit: contain;
   flex-shrink: 0;
+  background: var(--card-bg);
 }
-.ds-icon { background: var(--deepseek-bg); color: var(--deepseek); }
-.vol-icon { background: var(--volcano-bg); color: var(--volcano); }
-.ki-icon { background: var(--kimi-bg); color: var(--kimi); }
 
 .platform-name {
   font-size: 15px; font-weight: 600;
   letter-spacing: -.01em;
 }
+
+/* ─── Status badges ─── */
+.status-dot {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+.status-dot.ok { background: #10b981; }
+.status-dot.err { background: #ef4444; }
+.status-dot.warn { background: #f59e0b; }
 
 /* ─── Balance ─── */
 .balance-section { margin-bottom: 14px; }
@@ -173,40 +265,30 @@ body {
   margin-bottom: 4px;
 }
 .balance-value {
-  font-size: 30px; font-weight: 700;
+  font-size: 32px; font-weight: 700;
   letter-spacing: -.02em; font-variant-numeric: tabular-nums;
+  line-height: 1.1;
 }
 .balance-unit { font-size: 14px; font-weight: 500; color: var(--text-secondary); margin-left: 4px; }
 
-/* ─── Usage bar ─── */
-.usage-section { margin-bottom: 6px; }
-.usage-label {
-  font-size: 12px; color: var(--text-tertiary);
-  margin-bottom: 6px; display: flex; justify-content: space-between;
+/* ─── Volcano extra ─── */
+.vol-status-row {
+  display: flex; gap: 16px; align-items: center;
+  font-size: 12px; margin-bottom: 4px;
+  flex-wrap: wrap;
 }
-.usage-total { font-weight: 600; color: var(--text-secondary); }
-
-.usage-bar-track {
-  height: 6px; border-radius: 99px;
-  background: var(--border); overflow: hidden;
+.vol-models {
+  font-size: 12px; color: var(--text-secondary);
+  margin-top: 6px;
 }
-.usage-bar-fill {
-  height: 100%; border-radius: 99px;
-  transition: width .6s cubic-bezier(.4,0,.2,1);
-}
-.ds-bar { background: var(--deepseek); }
-.vol-bar { background: var(--volcano); }
-.ki-bar { background: var(--kimi); }
-
-/* ─── Stats row ─── */
-.stats-row {
-  display: grid; grid-template-columns: 1fr 1fr;
-  gap: 10px; margin-top: 14px; padding-top: 14px;
+.vol-hint {
+  margin-top: 10px; padding-top: 10px;
   border-top: 1px solid var(--border);
+  font-size: 11px; color: var(--text-tertiary);
+  line-height: 1.6;
 }
-.stat-item {}
-.stat-label { font-size: 11px; color: var(--text-tertiary); }
-.stat-value { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.vol-hint a { color: var(--accent); text-decoration: none; }
+.vol-hint a:hover { text-decoration: underline; }
 
 /* ─── Skeleton ─── */
 .skeleton {
@@ -221,9 +303,8 @@ body {
 }
 @keyframes shimmer { 0% { transform: translateX(-100%) } 100% { transform: translateX(100%) } }
 
-.skel-lg { height: 34px; width: 70%; margin: 4px 0 8px; }
-.skel-bar { height: 6px; border-radius: 99px; margin-bottom: 12px; }
-.skel-sm { height: 15px; width: 50%; }
+.skel-lg { height: 36px; width: 70%; margin: 4px 0 8px; }
+.skel-sm { height: 15px; width: 48%; }
 
 /* ─── Error ─── */
 .card-error {
@@ -236,16 +317,17 @@ body {
   margin: 8px 0;
 }
 .card-error .err-title { font-weight: 600; margin-bottom: 4px; }
-.card-error .err-detail { opacity: .8; font-size: 12px; }
+.card-error .err-detail { opacity: .8; font-size: 12px; word-break: break-all; }
 
-/* ─── Footer hint ─── */
+/* ─── Footer ─── */
 .setup-hint {
   margin-top: 32px; text-align: center;
   font-size: 13px; color: var(--text-tertiary);
+  line-height: 1.8;
 }
 .setup-hint code {
   background: var(--card-bg); border: 1px solid var(--border);
-  padding: 2px 6px; border-radius: 4px; font-size: 12px;
+  padding: 2px 8px; border-radius: 4px; font-size: 12px;
 }
 </style>
 </head>
@@ -253,144 +335,239 @@ body {
 <div class="container">
 
   <header class="header">
-    <h1>Token Cost</h1>
+    <div class="header-left">
+      <h1>Token Cost</h1>
+      <span class="header-sub">API 余额监控</span>
+    </div>
     <div class="header-right">
-      <span class="last-updated" id="updated"></span>
-      <button class="refresh-btn" id="refreshBtn" onclick="fetchAll()">
-        <svg class="icon-refresh" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+      <span class="countdown" id="countdown"></span>
+      <button class="btn theme-btn" id="themeBtn" onclick="cycleTheme()" title="切换主题">
+        <svg id="themeIcon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      </button>
+      <button class="btn" id="autoBtn" onclick="toggleAuto()" title="自动刷新">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        自动
+      </button>
+      <button class="btn refresh-btn" id="refreshBtn" onclick="fetchAll()">
+        <svg class="icon-refresh" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
         刷新
       </button>
     </div>
   </header>
 
-  <div class="grid">
-    <!-- DeepSeek -->
-    <div class="card" id="card-deepseek">
-      <div class="card-header">
-        <div class="platform-icon ds-icon">DS</div>
-        <span class="platform-name">DeepSeek</span>
-      </div>
-      <div id="ds-content"><div class="skeleton skel-lg"></div><div class="skeleton skel-bar"></div><div class="skeleton skel-sm"></div></div>
+  <div class="summary" id="summary">
+    <div class="summary-item">
+      <div class="summary-label">总余额</div>
+      <div class="summary-value" id="sumBalance">—</div>
     </div>
-
-    <!-- Volcano Engine -->
-    <div class="card" id="card-volcano">
-      <div class="card-header">
-        <div class="platform-icon vol-icon">火</div>
-        <span class="platform-name">火山引擎</span>
-      </div>
-      <div id="vol-content"><div class="skeleton skel-lg"></div><div class="skeleton skel-bar"></div><div class="skeleton skel-sm"></div></div>
-    </div>
-
-    <!-- Kimi -->
-    <div class="card" id="card-kimi">
-      <div class="card-header">
-        <div class="platform-icon ki-icon">Ki</div>
-        <span class="platform-name">Kimi</span>
-      </div>
-      <div id="ki-content"><div class="skeleton skel-lg"></div><div class="skeleton skel-bar"></div><div class="skeleton skel-sm"></div></div>
+    <div class="summary-item">
+      <div class="summary-label">最后更新</div>
+      <div class="summary-value" id="sumTime" style="font-size:15px;">—</div>
     </div>
   </div>
 
-  <p class="setup-hint">配置 API Key：将 <code>.env.example</code> 复制为 <code>.env</code> 并填入各平台 Key，然后 <code>npm start</code></p>
+  <div class="grid">
+    <div class="card ds loading" id="card-ds">
+      <div class="card-header">
+        <img class="platform-logo" src="https://logo-teka.com/wp-content/uploads/2025/07/deepseek-sign-logo.svg" alt="DeepSeek">
+        <span class="platform-name">DeepSeek</span>
+      </div>
+      <div id="ds-content"><div class="skeleton skel-lg"></div><div class="skeleton skel-sm"></div></div>
+    </div>
+
+    <div class="card vol loading" id="card-vol">
+      <div class="card-header">
+        <img class="platform-logo" src="https://unpkg.com/@lobehub/icons-static-svg@latest/icons/volcengine-color.svg" alt="火山引擎">
+        <span class="platform-name">火山引擎</span>
+      </div>
+      <div id="vol-content"><div class="skeleton skel-lg"></div><div class="skeleton skel-sm"></div></div>
+    </div>
+
+    <div class="card ki loading" id="card-ki">
+      <div class="card-header">
+        <img class="platform-logo" src="https://www.kimi.com/favicon.ico" alt="Kimi">
+        <span class="platform-name">Kimi</span>
+      </div>
+      <div id="ki-content"><div class="skeleton skel-lg"></div><div class="skeleton skel-sm"></div></div>
+    </div>
+  </div>
+    </div>
+  </div>
+
+  <p class="setup-hint">
+    配置方式：将 <code>.env.example</code> 复制为 <code>.env</code> 并填入各平台 Key，执行 <code>npm start</code>
+  </p>
 
 </div>
 
 <script>
+// ─── Config ───
+const AUTO_INTERVAL = 60;
+let autoTimer = null;
+let autoCountdown = 0;
+let countdownTimer = null;
+let platformData = {};
+
+// ─── Theme ───
+const THEMES = ["auto", "light", "dark"];
+function getTheme() { return document.documentElement.getAttribute("data-theme") || "auto"; }
+function setTheme(t) {
+  document.documentElement.setAttribute("data-theme", t);
+  localStorage.setItem("theme", t);
+}
+
+function cycleTheme() {
+  const idx = THEMES.indexOf(getTheme());
+  const next = THEMES[(idx + 1) % THEMES.length];
+  setTheme(next);
+}
+
+// init theme from localStorage
+(function() {
+  const saved = localStorage.getItem("theme");
+  if (saved && THEMES.includes(saved)) setTheme(saved);
+})();
+
+// ─── Helpers ───
 function fmt(n) {
   if (n == null || n === "" || isNaN(n)) return "—";
   if (Math.abs(n) < 0.01 && n !== 0) return n.toFixed(6);
   if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(2) + "M";
   if (Math.abs(n) >= 1e4) return (n / 1000).toFixed(1) + "K";
-  return +n.toFixed(2);
+  return n.toFixed(2);
 }
 
-function renderPlatform(id, data, barClass, platform) {
+function skel(id) {
+  document.getElementById(id).innerHTML =
+    '<div class="skeleton skel-lg"></div><div class="skeleton skel-sm"></div>';
+}
+
+function timeStr() {
+  return new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+// ─── Update summary bar ───
+function updateSummary() {
+  let totalBalance = 0, hasData = false;
+  for (const key of Object.keys(platformData)) {
+    const d = platformData[key];
+    if (d && d.ok && d.balance != null) {
+      totalBalance += d.balance;
+      hasData = true;
+    }
+  }
+  document.getElementById("sumBalance").textContent = hasData ? "¥" + fmt(totalBalance) : "—";
+  document.getElementById("sumTime").textContent = timeStr();
+}
+
+// ─── Render platform card ───
+function renderPlatform(id, data, platform) {
   const el = document.getElementById(id);
+  const card = el.parentElement;
+  card.classList.remove("loading");
+
   if (!data || !data.ok) {
     el.innerHTML = `<div class="card-error"><div class="err-title">无法获取数据</div><div class="err-detail">${(data && data.error) || "未知错误"}</div></div>`;
     return;
   }
 
-  // Volcano has special display
   if (platform === "volcano") {
     const balance = data.balance;
-    const models = data.activeModels || 0;
-    const hint = data.hint || "";
-    const billingOk = data.billingOk;
-    const unit = (data.currency || "").replace("CNY","\u00A5").replace("USD","$");
-    const arkStatus = models > 0
-      ? '<span style="color:#10b981">&#9989; Ark \u5DF2\u8FDE\u63A5</span>'
-      : '<span style="color:#ef4444">&#10060; Ark \u672A\u8FDE\u63A5</span>';
-    const billingStatus = billingOk
-      ? '<span style="color:#10b981">&#9989; \u8BA1\u8D39\u5DF2\u8FDE\u63A5</span>'
-      : '<span style="color:#f59e0b">&#9888; \u8BA1\u8D39\u672A\u8FDE\u63A5</span>';
+    const unit = (data.currency || "").replace("CNY", "¥").replace("USD", "$");
 
     el.innerHTML = `
       <div class="balance-section">
-        <div class="balance-label">${arkStatus} &nbsp; ${billingStatus}${hint ? '<br><span style="font-size:11px;color:var(--text-tertiary))">'+hint+'</span>' : ''}</div>
-        <div class="balance-value">${balance != null ? fmt(balance) + " <span class=\"balance-unit\">"+unit+"</span>" : "\u2014"}</div>
+        <div class="balance-label">账户余额 (${unit})</div>
+        <div class="balance-value">${balance != null ? fmt(balance) : "—"}</div>
       </div>
-      <div style="font-size:12px;color:var(--text-tertiary);margin-top:4px;">\u53EF\u7528\u6A21\u578B: ${models} \u4E2A</div>
-      ${!billingOk ? '<div style="margin-top:8px;font-size:11px;color:var(--text-tertiary);border-top:1px solid var(--border);padding-top:8px;">\u8BA1\u8D39\u67E5\u8BE2\u9700\u8981\u5728<a href="https://console.volcengine.com/iam/keymanage/" target="_blank" style="color:var(--accent)">IAM \u63A7\u5236\u53F0</a>\u4E3A AK/SK \u6DFB\u52A0 <b>BillingFullAccess</b> \u6743\u9650</div>' : ''}
     `;
     return;
   }
 
   const balance = data.balance;
-  const used = data.used;
-  const unit = (data.currency || "").replace("CNY","\u00A5").replace("USD","$");
-  const total = balance != null && used != null ? balance + used : null;
-  const pct = total && total > 0 ? Math.min(100, (used / total * 100)).toFixed(1) : null;
+  const unit = (data.currency || "").replace("CNY", "¥").replace("USD", "$");
 
   el.innerHTML = `
     <div class="balance-section">
-      <div class="balance-label">${unit ? "\u4F59\u989D ("+unit+")" : "\u4F59\u989D"}</div>
-      <div class="balance-value">${balance != null ? fmt(balance) : "\u2014"}</div>
-    </div>
-    ${used != null ? `
-    <div class="usage-section">
-      <div class="usage-label"><span>\u5DF2\u6D88\u8D39</span><span class="usage-total">${fmt(used)}${pct ? " \u00B7 "+pct+"%" : ""}</span></div>
-      <div class="usage-bar-track"><div class="usage-bar-fill ${barClass}" style="width:${pct || 0}%"></div></div>
-    </div>` : ""}
-    <div class="stats-row">
-      <div class="stat-item">
-        <div class="stat-label">\u603B\u989D</div>
-        <div class="stat-value">${total != null ? fmt(total) : "\u2014"}</div>
-      </div>
-      <div class="stat-item">
-        <div class="stat-label">\u5DF2\u7528\u5360\u6BD4</div>
-        <div class="stat-value">${pct != null ? pct + "%" : "\u2014"}</div>
-      </div>
+      <div class="balance-label">账户余额 (${unit})</div>
+      <div class="balance-value">${balance != null ? fmt(balance) : "—"}</div>
     </div>
   `;
 }
 
+// ─── Fetch single platform ───
+async function fetchPlatform(platform, contentId) {
+  try {
+    const r = await fetch(`/api/${platform}`);
+    const data = await r.json();
+    platformData[platform] = data;
+    renderPlatform(contentId, data, platform);
+  } catch (e) {
+    platformData[platform] = { ok: false, error: e.message };
+    renderPlatform(contentId, { ok: false, error: e.message }, platform);
+  }
+}
+
+// ─── Fetch all platforms ───
 async function fetchAll() {
   const btn = document.getElementById("refreshBtn");
   btn.classList.add("spin");
   btn.disabled = true;
 
-  document.getElementById("ds-content").innerHTML = '<div class="skeleton skel-lg"></div><div class="skeleton skel-bar"></div><div class="skeleton skel-sm"></div>';
-  document.getElementById("vol-content").innerHTML = '<div class="skeleton skel-lg"></div><div class="skeleton skel-bar"></div><div class="skeleton skel-sm"></div>';
-  document.getElementById("ki-content").innerHTML = '<div class="skeleton skel-lg"></div><div class="skeleton skel-bar"></div><div class="skeleton skel-sm"></div>';
+  ["ds-content", "vol-content", "ki-content"].forEach(skel);
+  ["card-ds", "card-vol", "card-ki"].forEach(id => document.getElementById(id).classList.add("loading"));
 
-  try {
-    const r = await fetch("/api/all");
-    const d = await r.json();
-    renderPlatform("ds-content", d.deepseek, "ds-bar", "deepseek");
-    renderPlatform("vol-content", d.volcano, "vol-bar", "volcano");
-    renderPlatform("ki-content", d.kimi, "ki-bar", "kimi");
-    document.getElementById("updated").textContent = "更新于 " + new Date().toLocaleTimeString("zh-CN", {hour:"2-digit",minute:"2-digit"});
-  } catch (e) {
-    ["ds-content","vol-content","ki-content"].forEach(id => {
-      document.getElementById(id).innerHTML = `<div class="card-error"><div class="err-title">请求失败</div><div class="err-detail">${e.message}</div></div>`;
-    });
-  }
+  await Promise.all([
+    fetchPlatform("deepseek", "ds-content"),
+    fetchPlatform("volcano", "vol-content"),
+    fetchPlatform("kimi", "ki-content"),
+  ]);
+
+  updateSummary();
 
   setTimeout(() => { btn.classList.remove("spin"); btn.disabled = false; }, 600);
 }
 
+// ─── Auto-refresh ───
+function updateCountdownDisplay() {
+  const el = document.getElementById("countdown");
+  const m = Math.floor(autoCountdown / 60);
+  const s = autoCountdown % 60;
+  el.textContent = `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function startCountdown() {
+  autoCountdown = AUTO_INTERVAL;
+  updateCountdownDisplay();
+  countdownTimer = setInterval(() => {
+    autoCountdown--;
+    updateCountdownDisplay();
+    if (autoCountdown <= 0) {
+      fetchAll().then(() => { autoCountdown = AUTO_INTERVAL; updateCountdownDisplay(); });
+    }
+  }, 1000);
+}
+
+function stopCountdown() {
+  if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+}
+
+function toggleAuto() {
+  const btn = document.getElementById("autoBtn");
+  if (autoTimer) {
+    btn.classList.remove("active");
+    stopCountdown();
+    autoTimer = null;
+    document.getElementById("countdown").textContent = "";
+  } else {
+    btn.classList.add("active");
+    autoCountdown = AUTO_INTERVAL;
+    updateCountdownDisplay();
+    startCountdown();
+  }
+}
+
+// ─── Init ───
 fetchAll();
 </script>
 </body>
