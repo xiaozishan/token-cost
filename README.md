@@ -14,22 +14,29 @@ API 余额监控仪表盘——实时查看 DeepSeek、火山引擎、Kimi 等 L
 
 ## 快速开始
 
+### 一键包（推荐）
+
+从 [Releases](https://github.com/xiaozishan/token-cost/releases) 下载对应系统的可执行文件，
+解压后 `public/` 文件夹和可执行文件放在同一目录，运行即可：
+
 ```bash
-# 克隆仓库
-git clone https://github.com/xiaozishan/token-cost.git
-cd token-cost
+# Windows
+token-cost-win.exe
 
-# 安装依赖
-npm install
-
-# 配置 API Key（将 .env.example 复制为 .env 并填入）
-cp .env.example .env
-
-# 启动服务
-npm start
+# Linux
+./token-cost-linux
 ```
 
-打开浏览器访问 **http://localhost:3456** 即可。
+打开浏览器访问 **http://localhost:3456**，在卡片中直接输入 API Key 即可查询余额。
+
+### 源码运行
+
+```bash
+git clone https://github.com/xiaozishan/token-cost.git
+cd token-cost
+cp .env.example .env   # 或直接在网页卡片中输入 Key
+node server.js         # 访问 http://localhost:3456
+```
 
 ## 环境变量
 
@@ -45,10 +52,10 @@ npm start
 
 ## 技术栈
 
-- **后端**：Node.js + Express
+- **后端**：Node.js 原生 http 模块（零外部依赖）
 - **前端**：原生 HTML/CSS/JS（零依赖）
 - **认证**：火山引擎 SigV4 签名
-- **代理**：默认走 socks5h://127.0.0.1:7897
+- **一键包**：使用 Node.js SEA 打包为单文件可执行程序
 
 ## License
 
