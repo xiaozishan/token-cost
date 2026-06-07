@@ -7,10 +7,10 @@ import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.EditText;
-import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -48,7 +48,31 @@ public class MainActivity extends AppCompatActivity {
             connectToServer(ip);
         });
 
-
+        // 可预测式返回: 使用 OnBackPressedDispatcher 替代 onBackPressed()
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (webView != null && webView.getVisibility() == View.VISIBLE && webView.canGoBack()) {
+                    // WebView 可后退 → 走 WebView 历史
+                    webView.goBack();
+                } else if (webView != null && webView.getVisibility() == View.VISIBLE) {
+                    // WebView 到底了 → 断开连接弹窗
+                    new AlertDialog.Builder(MainActivity.this)
+                        .setMessage("断开连接并返回设置页面？")
+                        .setPositiveButton("断开", (d, w) -> {
+                            webView.setVisibility(View.GONE);
+                            connectLayout.setVisibility(View.VISIBLE);
+                            statusText.setText("");
+                        })
+                        .setNegativeButton("取消", null)
+                        .show();
+                } else {
+                    // 设置页面 → 直接退出
+                    setEnabled(false);
+                    getOnBackPressedDispatcher().onBackPressed();
+                }
+            }
+        });
     }
 
     private void connectToServer(String ip) {
@@ -67,7 +91,7 @@ public class MainActivity extends AppCompatActivity {
         webView.getSettings().setJavaScriptEnabled(true);
         webView.getSettings().setDomStorageEnabled(true);
         webView.getSettings().setAllowFileAccess(false);
-        webView.getSettings().setMixedContentMode(0); // always allow
+        webView.getSettings().setMixedContentMode(0);
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
@@ -79,22 +103,5 @@ public class MainActivity extends AppCompatActivity {
         webView.setWebChromeClient(new WebChromeClient());
 
         webView.loadUrl(url);
-    }
-
-    @Override
-    public void onBackPressed() {
-        if (webView.canGoBack()) {
-            webView.goBack();
-        } else {
-            new AlertDialog.Builder(this)
-                .setMessage("断开连接并返回设置页面？")
-                .setPositiveButton("是", (d, w) -> {
-                    webView.setVisibility(View.GONE);
-                    connectLayout.setVisibility(View.VISIBLE);
-                    statusText.setText("");
-                })
-                .setNegativeButton("否", null)
-                .show();
-        }
     }
 }
